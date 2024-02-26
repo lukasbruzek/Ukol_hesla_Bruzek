@@ -13,7 +13,6 @@ using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Serialization;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using ClassLibrary2;
 
 namespace Prihlasovanie
 {
