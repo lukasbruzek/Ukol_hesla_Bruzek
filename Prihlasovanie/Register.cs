@@ -1,62 +1,62 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Diagnostics.Contracts;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
+using System.Data.SQLite;
 using System.Windows.Forms;
-using System.Xml;
-using System.Xml.Serialization;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Prihlasovanie
 {
     public partial class Register : Form
     {
+        SQLiteConnection sqlite_conn;
         DataHandler dh = new DataHandler();
         public Register()
         {
             InitializeComponent();
+            sqlite_conn = new SQLiteConnection("Data Source=database.db; Version=3; New=True; Compress=True;");
         }
 
         private void Save_Click(object sender, EventArgs e)
         {
             if (txtBoxPasswordOne.Text != txtBoxPasswordTwo.Text)
             {
+                MessageBox.Show("Passwords don't match");
                 return;
             }
-            bool isAdmin = false;
-            dh.DataLoad();
 
-            if (dh.users.Any(user => user.UserName == txtBoxUsername.Text))
+            using (sqlite_conn)
             {
-                MessageBox.Show("This user already exists");
-            }
-            else
-            {
-                if (dh.users.Count == 0)
+                sqlite_conn.Open();
+
+                // Check if the user already exists
+                SQLiteCommand checkUserCmd = sqlite_conn.CreateCommand();
+                checkUserCmd.CommandText = "SELECT COUNT(*) FROM Users WHERE UserName = @username";
+                checkUserCmd.Parameters.AddWithValue("@username", txtBoxUsername.Text);
+                int count = Convert.ToInt32(checkUserCmd.ExecuteScalar());
+
+                if (count > 0)
                 {
-                    isAdmin = true;
+                    MessageBox.Show("This user already exists");
+                    return;
                 }
-                string hashedPassword = dh.HashPassword(txtBoxPasswordOne.Text);
-                dh.users.Add(new User(txtBoxUsername.Text, hashedPassword, isAdmin));
-                dh.SaveData();
-                MessageBox.Show("Saved");
-                Login login = new Login();
-                login.FormClosed += LoginPage_FormClosed;
-                login.Show();
-                this.Hide();
+
+                // Insert new user data
+                SQLiteCommand insertCmd = sqlite_conn.CreateCommand();
+                insertCmd.CommandText = "INSERT INTO Users (UserName, Password, IsAdmin) VALUES (@username, @password, @isAdmin)";
+                insertCmd.Parameters.AddWithValue("@username", txtBoxUsername.Text);
+                insertCmd.Parameters.AddWithValue("@password", dh.HashPassword(txtBoxPasswordOne.Text));
+                insertCmd.Parameters.AddWithValue("@isAdmin", dh.users.Count == 0 ? 1 : 0); // Set IsAdmin to 1 if it's the first user, 0 otherwise
+                insertCmd.ExecuteNonQuery();
+
+                MessageBox.Show("User registered successfully");
+                string currentDirectory = Environment.CurrentDirectory;
+                MessageBox.Show("Current directory: " + currentDirectory);
+
+                // Close the form or take any other necessary action
             }
         }
 
-        private void LoginPage_FormClosed(object sender, FormClosedEventArgs e)
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            Application.Exit();
+            base.OnFormClosing(e);
         }
     }
 }

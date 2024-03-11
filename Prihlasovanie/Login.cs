@@ -1,17 +1,18 @@
 ﻿using System;
+using System.Data.SQLite;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
-using System.Xml;
 
 namespace Prihlasovanie
 {
     public partial class Login : Form
     {
-        DataHandler dh = new DataHandler();
+        SQLiteConnection sqlite_conn;
         public Login()
         {
             InitializeComponent();
+            sqlite_conn = new SQLiteConnection("Data Source=database.db; Version=3; New=True; Compress=True;");
         }
 
         bool VerifyPassword(string enteredPassword, string storedHash)
@@ -34,21 +35,27 @@ namespace Prihlasovanie
         private void Login_Click(object sender, EventArgs e)
         {
             bool login = false;
-            dh.DataLoad();
-            foreach (User user in dh.users)
+
+            using (sqlite_conn)
             {
-                if (user.UserName == txtBoxUserName.Text)
+                sqlite_conn.Open();
+
+                // Check if the user exists and verify the password
+                SQLiteCommand checkUserCmd = sqlite_conn.CreateCommand();
+                checkUserCmd.CommandText = "SELECT Password FROM Users WHERE UserName = @username";
+                checkUserCmd.Parameters.AddWithValue("@username", txtBoxUserName.Text);
+                string storedHash = checkUserCmd.ExecuteScalar() as string;
+
+                if (storedHash != null && VerifyPassword(txtBoxPassword.Text, storedHash))
                 {
-                    if (VerifyPassword(txtBoxPassword.Text, user.Password))
-                    {
-                        MainPage mainPage = new MainPage(user);
-                        mainPage.FormClosed += MainPage_FormClosed;
-                        mainPage.Show();
-                        login = true;
-                        this.Hide();
-                    }
+                    MainPage mainPage = new MainPage(new User(txtBoxUserName.Text, "", false)); // Create a temporary User object for now
+                    mainPage.FormClosed += MainPage_FormClosed;
+                    mainPage.Show();
+                    login = true;
+                    this.Hide();
                 }
             }
+
             if (!login)
             {
                 MessageBox.Show("Wrong credentials");
@@ -69,4 +76,3 @@ namespace Prihlasovanie
         }
     }
 }
-
